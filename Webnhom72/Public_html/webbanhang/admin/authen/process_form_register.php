@@ -2,7 +2,18 @@
 require_once(__DIR__ . '/../../../../Private/security/session.php');
 session_start();
 require_once(__DIR__ . '/../../../../Private/security/csrf.php');
-require_once('../../database/dbhelper.php');
+require_once(__DIR__ . '/../../../../Private/security/users_otp.php');
+require_once(__DIR__ . '/../../database/dbhelper.php');
+
+function registerFail($message, $fullname = '', $email = '', $phone = '', $birthday = '') {
+    $_SESSION['register_error'] = $message;
+    $_SESSION['register_fullname'] = $fullname;
+    $_SESSION['register_email'] = $email;
+    $_SESSION['register_phone'] = $phone;
+    $_SESSION['register_birthday'] = $birthday;
+    header('Location: loginregister.php');
+    exit;
+}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: loginregister.php');
@@ -13,48 +24,60 @@ adminVerifyCsrf();
 
 $fullname = trim($_POST['fullname'] ?? '');
 $email = trim($_POST['email'] ?? '');
+$phone = trim($_POST['address'] ?? $_POST['phone'] ?? '');
+$birthday = trim($_POST['birthday'] ?? '');
 $password = $_POST['password'] ?? '';
 $confirmationPassword = $_POST['confirmation_pwd'] ?? '';
 
 if ($fullname === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    exit('Vui lòng nhập họ tên và email hợp lệ.');
+    registerFail('Vui lòng nhập họ tên và địa chỉ email hợp lệ.', $fullname, $email, $phone, $birthday);
 }
 
-if (strlen($password) < 8 || $password !== $confirmationPassword) {
-    exit('Mật khẩu phải có ít nhất 8 ký tự và trùng khớp.');
+if (strlen($password) < 8) {
+    registerFail('Mật khẩu phải có ít nhất 8 ký tự.', $fullname, $email, $phone, $birthday);
+}
+
+if ($password !== $confirmationPassword) {
+    registerFail('Mật khẩu và xác nhận mật khẩu không trùng khớp.', $fullname, $email, $phone, $birthday);
 }
 
 $conn = getDB();
-$check = mysqli_prepare($conn, 'SELECT id FROM `User` WHERE email = ? AND deleted = 0 LIMIT 1');
-mysqli_stmt_bind_param($check, 's', $email);
-mysqli_stmt_execute($check);
-mysqli_stmt_store_result($check);
 
-if (mysqli_stmt_num_rows($check) > 0) {
+try {
+    $check = mysqli_prepare($conn, 'SELECT id FROM `user` WHERE email = ? AND deleted = 0 LIMIT 1');
+    mysqli_stmt_bind_param($check, 's', $email);
+    mysqli_stmt_execute($check);
+    mysqli_stmt_store_result($check);
+
+    if (mysqli_stmt_num_rows($check) > 0) {
+        mysqli_stmt_close($check);
+        registerFail('Email này đã được đăng ký trên hệ thống. Vui lòng đăng nhập hoặc dùng email khác.', $fullname, $email, $phone, $birthday);
+    }
     mysqli_stmt_close($check);
-    exit('Email đã được đăng ký trên hệ thống.');
+
+    // Thông tin hợp lệ -> Tạo mã OTP 6 số và tự động gửi về email của người dùng
+    $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+    $otpCode = userOtpGenerateCode();
+    $sent = userOtpSendEmail($email, $otpCode, 'register', $fullname);
+
+    $_SESSION['user_auth_pending'] = [
+        'action'          => 'register',
+        'fullname'        => $fullname,
+        'email'           => $email,
+        'phone'           => $phone,
+        'birthday'        => $birthday,
+        'password_hash'   => $passwordHash,
+        'otp_code'        => $otpCode,
+        'otp_expires'     => time() + 300, // 5 phút
+        'resend_cooldown' => time() + 60, // 60 giây
+        'attempts'        => 0,
+        'mail_sent'       => $sent,
+        'dev_otp'         => $otpCode
+    ];
+
+    header('Location: users_authentication.php');
+    exit;
+} catch (Throwable $e) {
+    error_log('[webbanhang] Lỗi tạo tài khoản: ' . $e->getMessage());
+    registerFail('Đăng ký thất bại do lỗi hệ thống: ' . $e->getMessage(), $fullname, $email, $phone, $birthday);
 }
-mysqli_stmt_close($check);
-
-$passwordHash = password_hash($password, PASSWORD_DEFAULT);
-$createdAt = date('Y-m-d H:i:s');
-$result = mysqli_query($conn, 'SELECT COALESCE(MAX(id), -1) + 1 AS next_id FROM `User`');
-$newUserId = (int)mysqli_fetch_assoc($result)['next_id'];
-mysqli_free_result($result);
-$insert = mysqli_prepare($conn, 'INSERT INTO `User` (id, fullname, email, password, role_id, created_at, updated_at, deleted) VALUES (?, ?, ?, ?, 2, ?, ?, 0)');
-mysqli_stmt_bind_param($insert, 'isssss', $newUserId, $fullname, $email, $passwordHash, $createdAt, $createdAt);
-
-if (!mysqli_stmt_execute($insert)) {
-    mysqli_stmt_close($insert);
-    exit('Không thể tạo tài khoản. Vui lòng thử lại.');
-}
-
-mysqli_stmt_close($insert);
-session_regenerate_id(true);
-$_SESSION['user_id'] = $newUserId;
-$_SESSION['fullname'] = $fullname;
-$_SESSION['email'] = $email;
-$_SESSION['role_id'] = 2;
-$_SESSION['auth_updated_at'] = $createdAt;
-header('Location: ../../utils/index.php');
-exit;

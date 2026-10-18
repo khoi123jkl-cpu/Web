@@ -1,7 +1,7 @@
 <?php
 require_once(__DIR__ . '/../../../Private/security/session.php');
 session_start();
-require_once('../database/dbhelper.php');
+require_once(__DIR__ . '/../database/dbhelper.php');
 require_once(__DIR__ . '/../../../Private/security/csrf.php');
 
 $conn = getDB();
@@ -155,7 +155,7 @@ if ($productImage === '') {
 	$productImage = 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=1000&q=80';
 }
 $utilsPageTitle = $product ? $product['title'] . ' | KhoaiLaptop' : 'Không tìm thấy sản phẩm | KhoaiLaptop';
-require_once('../assets/header.php');
+require_once(__DIR__ . '/../assets/header.php');
 ?>
 	<main class="container utils-page detail-page">
 		<a class="utils-back-link" href="index.php">← Về trang chính</a>
@@ -197,7 +197,7 @@ require_once('../assets/header.php');
 							<strong><?php echo detailEscape($comment['fullname']); ?></strong>
 							<time datetime="<?php echo detailEscape($comment['created_at']); ?>"><?php echo detailEscape($comment['created_at']); ?></time>
 							<p><?php echo nl2br(detailEscape($comment['content'])); ?></p>
-							<?php if ($comment['media']): ?><div class="comment-media"><?php foreach ($comment['media'] as $media): ?><?php if ($media['media_type'] === 'image'): ?><img src="<?php echo detailEscape('../' . $media['file_path']); ?>" alt="Ảnh đính kèm bình luận"><?php else: ?><video controls preload="metadata"><source src="<?php echo detailEscape('../' . $media['file_path']); ?>"></video><?php endif; ?><?php endforeach; ?></div><?php endif; ?>
+							<?php if ($comment['media']): ?><div class="comment-media"><?php foreach ($comment['media'] as $media): ?><?php if ($media['media_type'] === 'image'): ?><img class="comment-media-image" src="<?php echo detailEscape('../' . $media['file_path']); ?>" alt="Ảnh đính kèm bình luận" tabindex="0" role="button" aria-label="Xem ảnh đính kèm kích thước lớn"><?php else: ?><video controls preload="metadata"><source src="<?php echo detailEscape('../' . $media['file_path']); ?>"></video><?php endif; ?><?php endforeach; ?></div><?php endif; ?>
 						</article>
 					<?php endforeach; ?>
 					<?php if (!$comments): ?><p>Chưa có bình luận nào.</p><?php endif; ?>
@@ -207,4 +207,5 @@ require_once('../assets/header.php');
 			<h1>Không tìm thấy sản phẩm</h1>
 		<?php endif; ?>
 	</main>
-<?php require_once('../assets/footer.php'); ?>
+<script src="../assets/js/comment-media.js" defer></script>
+<?php require_once(__DIR__ . '/../assets/footer.php'); ?>

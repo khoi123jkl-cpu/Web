@@ -1,7 +1,7 @@
 <?php
 require_once(__DIR__ . '/../../../Private/security/session.php');
 session_start();    
-require_once('../database/dbhelper.php');
+require_once(__DIR__ . '/../database/dbhelper.php');
 require_once(__DIR__ . '/../../../Private/security/csrf.php');
 
 $conn = getDB();
@@ -56,7 +56,7 @@ foreach ($cartItems as $item) {
 }
 
 $utilsPageTitle = 'Giỏ hàng | KhoaiLaptop';
-require_once('../assets/header.php');
+require_once(__DIR__ . '/../assets/header.php');
 ?>
 <main class="container utils-page">
     <a class="back-link" href="index.php">← Tiếp tục mua sắm</a>
@@ -104,4 +104,4 @@ require_once('../assets/header.php');
         </div>
     <?php endif; ?>
 </main>
-<?php require_once('../assets/footer.php'); ?>
+<?php require_once(__DIR__ . '/../assets/footer.php'); ?>

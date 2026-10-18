@@ -1,5 +1,5 @@
 <?php
-require_once('../database/dbhelper.php');
+require_once(__DIR__ . '/../database/dbhelper.php');
 $conn = getDB();
 $categories = [];
 $result = mysqli_query($conn, 'SELECT id, name FROM `category` ORDER BY name');
@@ -26,7 +26,7 @@ function categoryPageEscape($value) {
 	return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 $utilsPageTitle = 'Danh mục | KhoaiLaptop';
-require_once('../assets/header.php');
+require_once(__DIR__ . '/../assets/header.php');
 ?>
 	<main class="container utils-page category-page">
 		<a class="utils-back-link" href="index.php">← Về trang chính</a>
@@ -57,4 +57,4 @@ require_once('../assets/header.php');
 			<?php if (!$products): ?><p>Danh mục này chưa có sản phẩm.</p><?php endif; ?>
 		<?php endif; ?>
 	</main>
-<?php require_once('../assets/footer.php'); ?>
+<?php require_once(__DIR__ . '/../assets/footer.php'); ?>

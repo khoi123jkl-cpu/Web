@@ -1,7 +1,7 @@
 <?php
 require_once(__DIR__ . '/../../../../Private/security/session.php');
 session_start();
-require_once('../../database/dbhelper.php');
+require_once(__DIR__ . '/../../database/dbhelper.php');
 require_once(__DIR__ . '/../../../../Private/security/csrf.php');
 
 $conn = getDB();
@@ -75,8 +75,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+$hasOrderCodeCol = false;
+$colCheck = mysqli_query($conn, "SHOW COLUMNS FROM `order` LIKE 'order_code'");
+if ($colCheck && mysqli_num_rows($colCheck) > 0) {
+    $hasOrderCodeCol = true;
+    mysqli_free_result($colCheck);
+}
+
 $orders = [];
-$result = mysqli_query($conn, 'SELECT id, fullname, email, phone_number, address, total_money, order_date, status FROM `order` ORDER BY id DESC');
+if ($hasOrderCodeCol) {
+    $result = mysqli_query($conn, 'SELECT id, order_code, delivery_pin, fullname, email, phone_number, address, total_money, order_date, status FROM `order` ORDER BY id DESC');
+} else {
+    $result = mysqli_query($conn, 'SELECT id, fullname, email, phone_number, address, total_money, order_date, status FROM `order` ORDER BY id DESC');
+}
 while ($row = mysqli_fetch_assoc($result)) { $orders[] = $row; }
 mysqli_free_result($result);
 $displayName = htmlspecialchars((string)($_SESSION['fullname'] ?? 'Quản trị viên'), ENT_QUOTES, 'UTF-8');
@@ -85,7 +96,9 @@ require_once('../layouts/header.php');
 <div class="page-heading"><div><p class="eyebrow">KHU VỰC QUẢN TRỊ</p><h1>Đơn hàng</h1><p>Kiểm tra và cập nhật trạng thái các đơn hàng đã phát sinh.</p></div></div>
 <?php if ($error !== ''): ?><p class="notice error" role="alert"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></p><?php endif; ?>
 <?php if ($success !== ''): ?><p class="notice success" role="status"><?php echo htmlspecialchars($success, ENT_QUOTES, 'UTF-8'); ?></p><?php endif; ?>
-<div class="table-wrap"><table><thead><tr><th>ID</th><th>Khách hàng</th><th>Email</th><th>Điện thoại</th><th>Địa chỉ</th><th>Tổng tiền</th><th>Ngày đặt</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody><?php foreach ($orders as $order): ?><tr><td>#<?php echo (int)$order['id']; ?></td>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Mã đơn</th><th>Mã PIN</th><th>Khách hàng</th><th>Email</th><th>Điện thoại</th><th>Địa chỉ</th><th>Tổng tiền</th><th>Ngày đặt</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody><?php foreach ($orders as $order): ?><tr><td>#<?php echo (int)$order['id']; ?></td>
+    <td><code style="font-weight: 600;"><?php echo htmlspecialchars($order['order_code'] ?? ('KL-' . $order['id']), ENT_QUOTES, 'UTF-8'); ?></code></td>
+    <td><strong style="color: #b45309; font-family: monospace; background: #fef3c7; padding: 2px 6px; border-radius: 4px;"><?php echo htmlspecialchars($order['delivery_pin'] ?? '-', ENT_QUOTES, 'UTF-8'); ?></strong></td>
     <td><strong><?php echo htmlspecialchars($order['fullname'], ENT_QUOTES, 'UTF-8'); ?></strong></td>
     <td><?php echo htmlspecialchars($order['email'], ENT_QUOTES, 'UTF-8'); ?></td>
     <td><?php echo htmlspecialchars($order['phone_number'], ENT_QUOTES, 'UTF-8'); ?></td>
@@ -110,5 +123,5 @@ require_once('../layouts/header.php');
             <button type="submit" class="delete-button">Xóa đơn hàng</button>
         </form>
     </td>
-</tr><?php endforeach; ?><?php if (!$orders): ?><tr><td colspan="9" class="empty">Chưa có đơn hàng nào.</td></tr><?php endif; ?></tbody></table></div>
+</tr><?php endforeach; ?><?php if (!$orders): ?><tr><td colspan="11" class="empty">Chưa có đơn hàng nào.</td></tr><?php endif; ?></tbody></table></div>
 <?php require_once('../layouts/footer.php'); ?>

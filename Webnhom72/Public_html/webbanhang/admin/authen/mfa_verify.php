@@ -17,8 +17,12 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     adminVerifyCsrf();
     $mfa = mfaGetUser($conn, (int)$pending['user_id']);
-    if ($mfa === null || !$mfa['enabled'] || !mfaVerifyCode($mfa['secret'], $_POST['code'] ?? '')) {
-        $error = 'Mã xác thực không đúng hoặc đã hết hạn.';
+    if ($mfa === null || !$mfa['enabled']) {
+        $error = 'Tài khoản chưa được kích hoạt MFA.';
+    } elseif ($mfa['secret'] === false || $mfa['secret'] === null || $mfa['secret'] === '') {
+        $error = 'Khóa bí mật MFA trong CSDL không khớp với khóa hệ thống hiện tại. Vui lòng tắt MFA trong CSDL (UPDATE user_mfa SET enabled = 0) để đăng nhập và thiết lập lại.';
+    } elseif (!mfaVerifyCode($mfa['secret'], $_POST['code'] ?? '')) {
+        $error = 'Mã xác thực không đúng hoặc đã hết hạn. Vui lòng kiểm tra đồng bộ giờ trên điện thoại.';
     } else {
         unset($_SESSION['mfa_pending']);
         session_regenerate_id(true);

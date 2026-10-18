@@ -1,7 +1,7 @@
 <?php
 require_once(__DIR__ . '/../../../Private/security/session.php');
 session_start();
-require_once('../database/dbhelper.php');
+require_once(__DIR__ . '/../database/dbhelper.php');
 require_once(__DIR__ . '/../../../Private/security/csrf.php');
 
 
@@ -23,20 +23,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_t
   mysqli_stmt_close($cartStatement);
 
   if (!$hasCart) {
-    $result = mysqli_query($conn, 'SELECT COALESCE(MAX(id), -1) + 1 AS next_id FROM `cart`');
-    $cartId = (int)mysqli_fetch_assoc($result)['next_id'];
-    mysqli_free_result($result);
-    $cartStatement = mysqli_prepare($conn, 'INSERT INTO `cart` (id, user_id) VALUES (?, ?)');
-    mysqli_stmt_bind_param($cartStatement, 'ii', $cartId, $userId);
+    $cartStatement = mysqli_prepare($conn, 'INSERT INTO `cart` (user_id) VALUES (?)');
+    mysqli_stmt_bind_param($cartStatement, 'i', $userId);
     mysqli_stmt_execute($cartStatement);
+    $cartId = (int)mysqli_insert_id($conn);
     mysqli_stmt_close($cartStatement);
   }
 
-  $result = mysqli_query($conn, 'SELECT COALESCE(MAX(id), -1) + 1 AS next_id FROM `cart_item`');
-  $itemId = (int)mysqli_fetch_assoc($result)['next_id'];
-  mysqli_free_result($result);
-  $itemStatement = mysqli_prepare($conn, 'INSERT INTO `cart_item` (id, product_id, cart_id) SELECT ?, id, ? FROM `product` WHERE id = ? AND deleted = 0');
-  mysqli_stmt_bind_param($itemStatement, 'iii', $itemId, $cartId, $productId);
+  $itemStatement = mysqli_prepare($conn, 'INSERT INTO `cart_item` (product_id, cart_id) SELECT ?, ? FROM `product` WHERE id = ? AND deleted = 0');
+  mysqli_stmt_bind_param($itemStatement, 'iii', $productId, $cartId, $productId);
   mysqli_stmt_execute($itemStatement);
   mysqli_stmt_close($itemStatement);
   header('Location: index.php#shop');
@@ -68,16 +63,16 @@ mysqli_free_result($productResult);
 
  $utilsPageTitle = 'KhoaiLaptop | Laptop & PC gear';
  $showCartButton = true;
- require_once('../assets/header.php');
+ require_once(__DIR__ . '/../assets/header.php');
 ?>
 
 <main id="top">
   <section class="hero container">
     <div class="hero-copy reveal">
-      <p class="eyebrow">Bạn muốn mua tivi?</p>
-      <h1>Đây chỉ là test<br><em>Mong các bạn thông cảm</em></h1>
-      <p class="hero-text">Ngày sương gió. Quấn áo ấm quanh thân mà đi. Mấy lúc lái xe hay thầm nghĩ. Làm sao sống sót qua đông này</p>
-      <a class="primary-button" href="#shop">Làm tí tham quan <span>↗</span></a>
+      <p class="eyebrow">Laptop &amp; Phụ kiện công nghệ</p>
+      <h1>Hiệu năng đỉnh cao<br><em>Đồng hành cùng đam mê</em></h1>
+      <p class="hero-text">Khám phá các dòng laptop gaming, văn phòng và phụ kiện công nghệ tuyển chọn với chất lượng hàng đầu và chính sách bảo hành tận tâm.</p>
+      <a class="primary-button" href="#shop">Khám phá sản phẩm ngay <span>↗</span></a>
     </div>
     <div class="hero-art reveal">
       <div class="hero-label">01 / 04</div>
@@ -86,13 +81,51 @@ mysqli_free_result($productResult);
   </section>
 
   <section class="ticker">
-    <div class="ticker-track"><div class="ticker-item">Vẫn luôn là anh <span>✦</span> bây giờ <span>✦</span> muốn nói với em sau này <span>✦</span> Dẫu có dối gian <span>✦</span> em đừng <span>✦</span> trách than mùa đông đã làm ta tan vỡ <span>✦</span></div></div>
+    <div class="ticker-container">
+  <div class="ticker-track">
+    <div class="ticker-content">
+      <span class="ticker-item">Vẫn luôn là anh</span>
+      <span class="ticker-item">Bây giờ</span>
+      <span class="ticker-item">Muốn nói với em</span>
+      <span class="ticker-item">Sau này</span>
+    </div>
+    <div class="ticker-content">
+      <span class="ticker-item">Vẫn luôn là anh</span>
+      <span class="ticker-item">Bây giờ</span>
+      <span class="ticker-item">Muốn nói với em</span>
+      <span class="ticker-item">Sau này</span>
+    </div>
+    <div class="ticker-content">
+      <span class="ticker-item">Vẫn luôn là anh</span>
+      <span class="ticker-item">Bây giờ</span>
+      <span class="ticker-item">Muốn nói với em</span>
+      <span class="ticker-item">Sau này</span>
+    </div>
+        <div class="ticker-content">
+      <span class="ticker-item">Vẫn luôn là anh</span>
+      <span class="ticker-item">Bây giờ</span>
+      <span class="ticker-item">Muốn nói với em</span>
+      <span class="ticker-item">Sau này</span>
+    </div>
+        <div class="ticker-content">
+      <span class="ticker-item">Vẫn luôn là anh</span>
+      <span class="ticker-item">Bây giờ</span>
+      <span class="ticker-item">Muốn nói với em</span>
+      <span class="ticker-item">Sau này</span>
+    </div>
+        <div class="ticker-content">
+      <span class="ticker-item">Vẫn luôn là anh</span>
+      <span class="ticker-item">Bây giờ</span>
+      <span class="ticker-item">Muốn nói với em</span>
+      <span class="ticker-item">Sau này</span>
+    </div>
+  </div>  
   </section>
 
   <section class="category-section container" id="categories">
     <div class="section-heading">
-      <div><p class="eyebrow">Bắt cả đầu</p><h2>Donate cho bọn mình<br>011620244869 MB BANK</h2></div>
-      <p class="section-intro">Chẳng phải tình đầu sao đau đến thế tại sao vẫn yêu si mê tại sao trái tim vẫn ngô nghê</p>
+      <div><p class="eyebrow">DANH MỤC TUYỂN CHỌN</p><h2>Danh mục sản phẩm<br>Đa dạng &amp; Chính hãng</h2></div>
+      <p class="section-intro">Tìm kiếm thiết bị và linh kiện phù hợp nhất cho công việc, học tập và giải trí của bạn.</p>
     </div>
     <div class="category-grid">
       <?php foreach ($categories as $index => $category): ?>
@@ -159,4 +192,4 @@ mysqli_free_result($productResult);
     </section>
   </main>
 
-<?php require_once('../assets/footer.php'); ?>
+<?php require_once(__DIR__ . '/../assets/footer.php'); ?>

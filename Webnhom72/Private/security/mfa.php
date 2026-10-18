@@ -1,8 +1,10 @@
 <?php
+require_once(__DIR__ . '/../env_loader.php');
+
 function mfaEncryptionKey()
 {
-    $key = getenv('WEBBANHANG_MFA_KEY');
-    if ($key === false || strlen($key) < 32) {
+    $key = appEnv('WEBBANHANG_MFA_KEY');
+    if ($key === null || $key === false || strlen($key) < 32) {
         throw new RuntimeException('WEBBANHANG_MFA_KEY must contain at least 32 characters.');
     }
 
@@ -30,6 +32,7 @@ function mfaBase32Decode($value)
 {
     $alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
     $value = strtoupper(trim($value));
+    $value = strtoupper(str_replace([' ', '-', '=', "\r", "\n", "\t"], '', trim((string)$value)));
     $binary = '';
     for ($i = 0, $length = strlen($value); $i < $length; $i++) {
         $position = strpos($alphabet, $value[$i]);
@@ -98,7 +101,7 @@ function mfaCodeForSecret($secret, $time = null)
 
 function mfaVerifyCode($secret, $code)
 {
-    if (!is_string($secret)) {
+    if (!is_string($secret) || $secret === '') {
         return false;
     }
 
@@ -108,7 +111,8 @@ function mfaVerifyCode($secret, $code)
     }
 
     $time = time();
-    for ($offset = -1; $offset <= 1; $offset++) {
+    // Mo rong cua so thoi gian tu -4 den +4 chu ky (lech toi da +-120 giay / 2 phut) de tranh sai lech gio he thong/dien thoai
+    for ($offset = -4; $offset <= 4; $offset++) {
         if (hash_equals((string)mfaCodeForSecret($secret, $time + ($offset * 30)), $code)) {
             return true;
         }

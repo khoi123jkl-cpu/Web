@@ -11,7 +11,7 @@ adminVerifyCsrf();
 $logoutRole = (int)($_SESSION['role_id'] ?? 2);
 $rememberToken = $_COOKIE['remember_token'] ?? '';
 if ($rememberToken !== '') {
-    require_once('../../database/dbhelper.php');
+    require_once(__DIR__ . '/../../database/dbhelper.php');
     $conn = getDB();
     $tokenHash = hash('sha256', $rememberToken);
     $lookupToken = mysqli_prepare($conn, 'SELECT user_id FROM auth_tokens WHERE token_hash = ? LIMIT 1');

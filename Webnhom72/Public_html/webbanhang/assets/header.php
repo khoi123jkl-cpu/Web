@@ -13,7 +13,7 @@ $accountHref = '../admin/authen/loginregister.php';
 $accountLabel = 'Đăng nhập';
 $accountStatus = 'Chưa đăng nhập';
 if (isset($_SESSION['user_id'])) {
-    require_once('../database/dbhelper.php');
+    require_once(__DIR__ . '/../database/dbhelper.php');
     $headerConn = getDB();
     if (authSessionIsValid($headerConn)) {
         $cartCountStatement = mysqli_prepare($headerConn, 'SELECT COUNT(*) FROM `cart_item` ci INNER JOIN `cart` c ON c.id = ci.cart_id WHERE c.user_id = ?');
@@ -47,7 +47,7 @@ if (isset($_SESSION['user_id'])) {
 </head>
 <body>
 <header class="site-header">
-    <div class="announcement">Qúa đẳngs cấp <span>•</span> Không hoàn tiền</div>
+    <div class="announcement">Chuyên Laptop &amp; PC Gear chính hãng <span>•</span> Bảo hành uy tín toàn quốc</div>
     <nav class="nav container" aria-label="Main navigation">
         <a class="brand" href="index.php#top" aria-label="KhoaiLaptop home">
             <span class="brand-mark">K</span>

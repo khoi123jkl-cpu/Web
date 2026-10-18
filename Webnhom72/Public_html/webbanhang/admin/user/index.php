@@ -16,18 +16,6 @@ function adminEscape($value) {
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
-function nextId($conn, $table) {
-    $allowedTables = ['category', 'product', 'user'];
-    if (!in_array($table, $allowedTables, true)) {
-        return 1;
-    }
-
-    $result = mysqli_query($conn, "SELECT COALESCE(MAX(id), -1) + 1 AS next_id FROM `$table`");
-    $row = mysqli_fetch_assoc($result);
-    mysqli_free_result($result);
-    return (int)$row['next_id'];
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     adminVerifyCsrf();
     $action = $_POST['action'] ?? '';
@@ -81,9 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success ? $message = 'Đã cập nhật tài khoản.' : $error = 'Không thể cập nhật tài khoản. Email có thể đã tồn tại.';
         } else {
             $passwordHash = password_hash($password !== '' ? $password : bin2hex(random_bytes(8)), PASSWORD_DEFAULT);
-            $newId = nextId($conn, 'user');
-            $statement = mysqli_prepare($conn, 'INSERT INTO `user` (id, fullname, email, phone_number, address, password, role_id, created_at, updated_at, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), 0)');
-            mysqli_stmt_bind_param($statement, 'isssssi', $newId, $fullname, $email, $phone, $address, $passwordHash, $roleId);
+            $statement = mysqli_prepare($conn, 'INSERT INTO `user` (fullname, email, phone_number, address, password, role_id, created_at, updated_at, deleted) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW(), 0)');
+            mysqli_stmt_bind_param($statement, 'sssssi', $fullname, $email, $phone, $address, $passwordHash, $roleId);
             $success = mysqli_stmt_execute($statement);
             mysqli_stmt_close($statement);
             $success ? $message = 'Đã thêm tài khoản mới.' : $error = 'Không thể thêm tài khoản. Email có thể đã tồn tại.';

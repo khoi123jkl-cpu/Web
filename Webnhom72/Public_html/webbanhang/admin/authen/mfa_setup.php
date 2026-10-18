@@ -15,7 +15,7 @@ $mfa = mfaGetUser($conn, $userId);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     adminVerifyCsrf();
     try {
-        if ($mfa !== null && $mfa['enabled']) {
+        if ($mfa !== null && $mfa['enabled'] && $mfa['secret'] !== false) {
             $error = 'MFA đã được bật cho tài khoản này.';
         } elseif (!isset($_SESSION['mfa_setup_secret'])) {
             $_SESSION['mfa_setup_secret'] = mfaGenerateSecret();
@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($error === '') {
             $secret = $_SESSION['mfa_setup_secret'];
             if (!mfaVerifyCode($secret, $_POST['code'] ?? '')) {
-                $error = 'Mã xác thực không đúng.';
+                $error = 'Mã xác thực không đúng. Vui lòng kiểm tra lại giờ trên điện thoại.';
             } else {
                 $ciphertext = mfaEncryptSecret($secret);
                 $statement = mysqli_prepare(
@@ -41,17 +41,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 mysqli_stmt_execute($revokeTokens);
                 mysqli_stmt_close($revokeTokens);
                 unset($_SESSION['mfa_setup_secret']);
-                $mfa = ['enabled' => true];
-                $message = 'Đã bật MFA cho tài khoản quản trị.';
+                $mfa = ['enabled' => true, 'secret' => $secret];
+                $message = 'Đã bật MFA thành công cho tài khoản quản trị.';
             }
         }
     } catch (RuntimeException $exception) {
         error_log('[webbanhang] MFA setup failed: ' . $exception->getMessage());
-        $error = 'MFA chưa được cấu hình trên máy chủ.';
+        $error = 'MFA chưa được cấu hình trên máy chủ: ' . $exception->getMessage();
     }
 }
 
-if ($mfa === null || !$mfa['enabled']) {
+if ($mfa === null || !$mfa['enabled'] || $mfa['secret'] === false) {
     try {
         if (!isset($_SESSION['mfa_setup_secret'])) {
             $_SESSION['mfa_setup_secret'] = mfaGenerateSecret();

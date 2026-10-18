@@ -32,7 +32,7 @@ h1 { margin-bottom: 10px; font: 600 clamp(32px, 4vw, 54px)/1 "Space Grotesk", Ar
 .page-heading p:not(.eyebrow) { margin-bottom: 0; color: var(--muted); }
 .primary-button, .ghost-button { display: inline-flex; align-items: center; justify-content: center; min-height: 42px; padding: 0 17px; border: 0; border-radius: 7px; font-size: 13px; font-weight: 700; text-decoration: none; }
 .primary-button { color: var(--ink); background: var(--lime); }
-.primary-button:hover { background: #c6e148; }
+.primary-button:hover { background: #f6f6f4; }
 .ghost-button { color: var(--ink); border: 1px solid var(--line); background: var(--panel); }
 .ghost-button:hover { border-color: var(--ink); }
 .notice { margin-bottom: 18px; padding: 13px 16px; border-radius: 7px; font-size: 14px; font-weight: 700; }

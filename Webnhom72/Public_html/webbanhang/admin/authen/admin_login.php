@@ -17,7 +17,7 @@ $mfaError = '';
 $rememberCookie = $_COOKIE['remember_token'] ?? '';
 if (!isset($_SESSION['user_id']) && $rememberCookie !== '') {
     $tokenHash = hash('sha256', $rememberCookie);
-    $statement = mysqli_prepare($conn, 'SELECT u.id, u.fullname, u.email, u.role_id, u.updated_at FROM auth_tokens t INNER JOIN `User` u ON u.id = t.user_id WHERE t.token_hash = ? AND t.expires_at > NOW() AND u.deleted = 0 AND u.role_id = 1 LIMIT 1');
+    $statement = mysqli_prepare($conn, 'SELECT u.id, u.fullname, u.email, u.role_id, u.updated_at FROM auth_tokens t INNER JOIN `user` u ON u.id = t.user_id WHERE t.token_hash = ? AND t.expires_at > NOW() AND u.deleted = 0 AND u.role_id = 1 LIMIT 1');
     mysqli_stmt_bind_param($statement, 's', $tokenHash);
     mysqli_stmt_execute($statement);
     mysqli_stmt_bind_result($statement, $id, $fullname, $email, $roleId, $authUpdatedAt);
@@ -50,63 +50,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Bạn đã thử đăng nhập quá nhiều lần. Vui lòng thử lại sau 60 giây.';
         $lockSeconds = authThrottleRemainingSeconds($conn, $emailKey, $ipKey);
     } else {
-        $statement = mysqli_prepare($conn, 'SELECT id, fullname, email, password, role_id, updated_at FROM `User` WHERE email = ? AND deleted = 0 LIMIT 1');
-        mysqli_stmt_bind_param($statement, 's', $email);
-        mysqli_stmt_execute($statement);
-        mysqli_stmt_bind_result($statement, $id, $fullname, $userEmail, $passwordHash, $roleId, $authUpdatedAt);
+        try {
+            $statement = mysqli_prepare($conn, 'SELECT id, fullname, email, password, role_id, updated_at FROM `user` WHERE email = ? AND deleted = 0 LIMIT 1');
+            mysqli_stmt_bind_param($statement, 's', $email);
+            mysqli_stmt_execute($statement);
+            mysqli_stmt_bind_result($statement, $id, $fullname, $userEmail, $passwordHash, $roleId, $authUpdatedAt);
 
-        if (!mysqli_stmt_fetch($statement)) {
-            $error = 'Email hoặc mật khẩu không đúng.';
-        }
-        mysqli_stmt_close($statement);
-
-        if ($error === '' && (int)$roleId !== 1) {
-            $error = 'Tài khoản này không có quyền quản trị.';
-        }
-
-        $isValidPassword = $error === '' && password_verify($password, $passwordHash);
-
-        if ($error === '' && !$isValidPassword) {
-            $error = 'Email hoặc mật khẩu không đúng.';
-        }
-
-        if ($error !== '') {
-            authThrottleRecordFailure($conn, $emailKey, $ipKey);
-            if (authThrottleIsBlocked($conn, $emailKey, $ipKey)) {
-                $error = 'Bạn đã thử đăng nhập sai quá 5 lần. Vui lòng đợi 60 giây rồi thử lại.';
-                $lockSeconds = authThrottleRemainingSeconds($conn, $emailKey, $ipKey);
+            if (!mysqli_stmt_fetch($statement)) {
+                $error = 'Email hoặc mật khẩu không đúng.';
             }
-        }
+            mysqli_stmt_close($statement);
 
-        if ($error === '') {
-            $mfa = mfaGetUser($conn, $id);
-            if ($mfa !== null && $mfa['enabled']) {
-                $_SESSION['mfa_pending'] = [
-                    'user_id' => $id,
-                    'fullname' => $fullname,
-                    'email' => $userEmail,
-                    'role_id' => 1,
-                    'auth_updated_at' => $authUpdatedAt,
-                    'remember' => isset($_POST['remember'])
-                ];
-                header('Location: mfa_verify.php');
+            if ($error === '' && (int)$roleId !== 1) {
+                $error = 'Tài khoản này không có quyền quản trị.';
+            }
+
+            $isValidPassword = $error === '' && password_verify($password, $passwordHash);
+
+            if ($error === '' && !$isValidPassword) {
+                $error = 'Email hoặc mật khẩu không đúng.';
+            }
+
+            if ($error !== '') {
+                authThrottleRecordFailure($conn, $emailKey, $ipKey);
+                if (authThrottleIsBlocked($conn, $emailKey, $ipKey)) {
+                    $error = 'Bạn đã thử đăng nhập sai quá 5 lần. Vui lòng đợi 60 giây rồi thử lại.';
+                    $lockSeconds = authThrottleRemainingSeconds($conn, $emailKey, $ipKey);
+                }
+            }
+
+            if ($error === '') {
+                $mfa = mfaGetUser($conn, $id);
+                if ($mfa !== null && $mfa['enabled']) {
+                    $_SESSION['mfa_pending'] = [
+                        'user_id' => $id,
+                        'fullname' => $fullname,
+                        'email' => $userEmail,
+                        'role_id' => 1,
+                        'auth_updated_at' => $authUpdatedAt,
+                        'remember' => isset($_POST['remember'])
+                    ];
+                    header('Location: mfa_verify.php');
+                    exit;
+                }
+
+                authThrottleClear($conn, $emailKey, $ipKey);
+                session_regenerate_id(true);
+                $_SESSION['user_id'] = $id;
+                $_SESSION['fullname'] = $fullname;
+                $_SESSION['email'] = $userEmail;
+                $_SESSION['role_id'] = 1;
+                $_SESSION['auth_updated_at'] = $authUpdatedAt;
+
+                if (isset($_POST['remember'])) {
+                    authRotateRememberToken($conn, $id);
+                }
+
+                header('Location: ../index.php');
                 exit;
             }
-
-            authThrottleClear($conn, $emailKey, $ipKey);
-            session_regenerate_id(true);
-            $_SESSION['user_id'] = $id;
-            $_SESSION['fullname'] = $fullname;
-            $_SESSION['email'] = $userEmail;
-            $_SESSION['role_id'] = 1;
-            $_SESSION['auth_updated_at'] = $authUpdatedAt;
-
-            if (isset($_POST['remember'])) {
-                authRotateRememberToken($conn, $id);
-            }
-
-            header('Location: ../index.php');
-            exit;
+        } catch (Throwable $e) {
+            error_log('[webbanhang] Lỗi admin login: ' . $e->getMessage());
+            $error = 'Lỗi cơ sở dữ liệu: ' . $e->getMessage() . '. Vui lòng kiểm tra đã Import file webbanhang.sql lên phpMyAdmin chưa.';
         }
     }
 }

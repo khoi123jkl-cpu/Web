@@ -1,7 +1,7 @@
 <?php
 require_once(__DIR__ . '/../../../../Private/security/session.php');
 session_start();
-require_once('../../database/dbhelper.php');
+require_once(__DIR__ . '/../../database/dbhelper.php');
 require_once(__DIR__ . '/../../../../Private/security/csrf.php');
 
 $conn = getDB();

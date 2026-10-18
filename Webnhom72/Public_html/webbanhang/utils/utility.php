@@ -33,28 +33,3 @@ function getCookie($key) {
     }
     return trim($value);
 }
-
-function validateToken($token) {
-    if(isset($_SESSION['user'])) {
-        return $_SESSION['user'];
-    }
-    $token = getCookie('token');
-    if (!$token) {
-        return null;
-    }
-    $stmt = $pdo->prepare('SELECT * FROM users WHERE token = :token');
-    $stmt->execute(['token' => $token]);
-    $tokenData = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if ($tokenData) {
-        $userId = $tokenData['id'];
-        $userStmt = $pdo->prepare('SELECT * FROM users WHERE id = :id');
-        $userStmt->execute(['id' => $userId]);
-        $user = $userStmt->fetch(PDO::FETCH_ASSOC);
-        if ($user) {
-            $_SESSION['user'] = $user;
-            return $user;
-        }
-    }
-    return null;
-}

@@ -37,13 +37,6 @@ function productThumbnailIsAllowed($thumbnail) {
     return strtolower($parts['scheme']) === 'https';
 }
 
-function productNextId($conn) {
-    $result = mysqli_query($conn, 'SELECT COALESCE(MAX(id), -1) + 1 AS next_id FROM `product`');
-    $row = mysqli_fetch_assoc($result);
-    mysqli_free_result($result);
-    return (int)$row['next_id'];
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     adminVerifyCsrf();
     $action = $_POST['action'] ?? '';
@@ -82,9 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             mysqli_stmt_close($statement);
             $success ? $message = 'Đã cập nhật sản phẩm.' : $error = 'Không thể cập nhật sản phẩm.';
         } else {
-            $newId = productNextId($conn);
-            $statement = mysqli_prepare($conn, 'INSERT INTO `product` (id, category_id, title, price, thumbnail, description, created_at, updated_at, deleted) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW(), 0)');
-            mysqli_stmt_bind_param($statement, 'iissss', $newId, $categoryId, $title, $price, $thumbnail, $description);
+            $statement = mysqli_prepare($conn, 'INSERT INTO `product` (category_id, title, price, thumbnail, description, created_at, updated_at, deleted) VALUES (?, ?, ?, ?, ?, NOW(), NOW(), 0)');
+            mysqli_stmt_bind_param($statement, 'issss', $categoryId, $title, $price, $thumbnail, $description);
             $success = mysqli_stmt_execute($statement);
             mysqli_stmt_close($statement);
             $success ? $message = 'Đã thêm sản phẩm mới.' : $error = 'Không thể thêm sản phẩm.';

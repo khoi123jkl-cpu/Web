@@ -1,7 +1,7 @@
 <?php
 require_once(__DIR__ . '/../../../Private/security/session.php');
 require_once(__DIR__ . '/../../../Private/security/csrf.php');
-require_once('../database/dbhelper.php');
+require_once(__DIR__ . '/../database/dbhelper.php');
 $conn = getDB();
 $sent = false;
 $error = '';
@@ -34,13 +34,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	) {
 		$error = 'Vui lòng nhập họ tên, email hợp lệ và nội dung.';
 	} else {
-		$statement = mysqli_prepare($conn, 'INSERT INTO `feedback` (id, firstname, lastname, email, phone_number, subject_name, note) VALUES (?, ?, ?, ?, ?, ?, ?)');
-		$result = mysqli_query($conn, 'SELECT COALESCE(MAX(id), -1) + 1 AS next_id FROM `feedback`');
-		$feedbackId = (int)mysqli_fetch_assoc($result)['next_id'];
-		mysqli_free_result($result);
+		$statement = mysqli_prepare($conn, 'INSERT INTO `feedback` (firstname, lastname, email, phone_number, subject_name, note) VALUES (?, ?, ?, ?, ?, ?)');
 		$phone = '';
 		$subject = 'Liên hệ từ trang cửa hàng';
-		mysqli_stmt_bind_param($statement, 'issssss', $feedbackId, $firstname, $lastname, $email, $phone, $subject, $message);
+		mysqli_stmt_bind_param($statement, 'ssssss', $firstname, $lastname, $email, $phone, $subject, $message);
 		$sent = mysqli_stmt_execute($statement);
 		mysqli_stmt_close($statement);
 		if (!$sent) {
@@ -49,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	}
 }
 $utilsPageTitle = 'Liên hệ | KhoaiLaptop';
-require_once('../assets/header.php');
+require_once(__DIR__ . '/../assets/header.php');
 ?>
 	<main class="container utils-page utils-page--narrow">
 		<a class="utils-back-link" href="index.php">← Về trang chính</a>
@@ -67,4 +64,4 @@ require_once('../assets/header.php');
 			<button class="primary-button" type="submit">Gửi liên hệ</button>
 		</form>
 	</main>
-<?php require_once('../assets/footer.php'); ?>
+<?php require_once(__DIR__ . '/../assets/footer.php'); ?>

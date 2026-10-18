@@ -1,7 +1,7 @@
 <?php
 require_once(__DIR__ . '/../../../Private/security/session.php');
 session_start();
-require_once('../database/dbhelper.php');
+require_once(__DIR__ . '/../database/dbhelper.php');
 require_once(__DIR__ . '/../../../Private/security/csrf.php');
 
 $conn = getDB();
@@ -40,6 +40,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$error = 'Giỏ hàng đang trống.';
 	} elseif ($fullname === '' || !filter_var($email, FILTER_VALIDATE_EMAIL) || $phone === '' || $address === '') {
 		$error = 'Vui lòng điền đầy đủ thông tin nhận hàng.';
+	} elseif (!preg_match('/^0[0-9]{9}$/', $phone)) {
+		$error = 'Số điện thoại không hợp lệ (gồm 10 chữ số, bắt đầu bằng số 0).';
 	} else {
 		$totalMoney = 0;
 		foreach ($cartItems as $item) {
@@ -48,25 +50,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 		mysqli_begin_transaction($conn);
 		try {
-			$result = mysqli_query($conn, 'SELECT COALESCE(MAX(id), -1) + 1 AS next_id FROM `order`');
-			$orderId = (int)mysqli_fetch_assoc($result)['next_id'];
-			mysqli_free_result($result);
+			$hasOrderCodeCol = false;
+			$colCheck = mysqli_query($conn, "SHOW COLUMNS FROM `order` LIKE 'order_code'");
+			if ($colCheck && mysqli_num_rows($colCheck) > 0) {
+				$hasOrderCodeCol = true;
+				mysqli_free_result($colCheck);
+			}
 
-			$orderStatement = mysqli_prepare($conn, 'INSERT INTO `order` (id, user_id, fullname, email, phone_number, address, note, order_date, status, total_money) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 1, ?)');
+			$orderCode = 'KL-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(2)));
+			$deliveryPin = (string)random_int(1000, 9999);
 			$note = '';
-			mysqli_stmt_bind_param($orderStatement, 'iisssssi', $orderId, $userId, $fullname, $email, $phone, $address, $note, $totalMoney);
+
+			if ($hasOrderCodeCol) {
+				$orderStatement = mysqli_prepare($conn, 'INSERT INTO `order` (user_id, order_code, delivery_pin, fullname, email, phone_number, address, note, order_date, status, total_money) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), 1, ?)');
+				mysqli_stmt_bind_param($orderStatement, 'isssssssi', $userId, $orderCode, $deliveryPin, $fullname, $email, $phone, $address, $note, $totalMoney);
+			} else {
+				$orderStatement = mysqli_prepare($conn, 'INSERT INTO `order` (user_id, fullname, email, phone_number, address, note, order_date, status, total_money) VALUES (?, ?, ?, ?, ?, ?, NOW(), 1, ?)');
+				mysqli_stmt_bind_param($orderStatement, 'isssssi', $userId, $fullname, $email, $phone, $address, $note, $totalMoney);
+			}
 			mysqli_stmt_execute($orderStatement);
+			$orderId = (int)mysqli_insert_id($conn);
 			mysqli_stmt_close($orderStatement);
 
 			foreach ($cartItems as $item) {
-				$result = mysqli_query($conn, 'SELECT COALESCE(MAX(id), -1) + 1 AS next_id FROM `order_detail`');
-				$detailId = (int)mysqli_fetch_assoc($result)['next_id'];
-				mysqli_free_result($result);
 				$price = (int)$item['price'];
 				$quantity = 1;
 				$detailTotal = $price;
-				$detailStatement = mysqli_prepare($conn, 'INSERT INTO `order_detail` (id, order_id, product_id, price, num, total_money) VALUES (?, ?, ?, ?, ?, ?)');
-				mysqli_stmt_bind_param($detailStatement, 'iiiiii', $detailId, $orderId, $item['product_id'], $price, $quantity, $detailTotal);
+				$detailStatement = mysqli_prepare($conn, 'INSERT INTO `order_detail` (order_id, product_id, price, num, total_money) VALUES (?, ?, ?, ?, ?)');
+				mysqli_stmt_bind_param($detailStatement, 'iiiii', $orderId, $item['product_id'], $price, $quantity, $detailTotal);
 				mysqli_stmt_execute($detailStatement);
 				mysqli_stmt_close($detailStatement);
 			}
@@ -80,13 +91,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			exit;
 		} catch (Throwable $exception) {
 			mysqli_rollback($conn);
+			error_log('[webbanhang] Checkout error: ' . $exception->getMessage());
 			$error = 'Không thể tạo đơn hàng. Vui lòng thử lại.';
 		}
 	}
 }
 $utilsPageTitle = 'Thanh toán | KhoaiLaptop';
 $utilsExtraCss = 'checkout.css';
-require_once('../assets/header.php');
+require_once(__DIR__ . '/../assets/header.php');
 ?>
 	<main class="checkout-page container">
 		<a class="back-link" href="index.php">← Tiếp tục mua sắm</a>
@@ -124,4 +136,4 @@ require_once('../assets/header.php');
 			</aside>
 		</div>
 	</main>
-<?php require_once('../assets/footer.php'); ?>
+<?php require_once(__DIR__ . '/../assets/footer.php'); ?>

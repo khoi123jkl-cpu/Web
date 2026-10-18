@@ -1,18 +1,29 @@
 <?php
+require_once(__DIR__ . '/../env_loader.php');
 require_once(__DIR__ . '/csp.php');
 
-define('APP_FORCE_HTTPS', getenv('WEBBANHANG_FORCE_HTTPS') !== '0');
+define('APP_FORCE_HTTPS', appEnv('WEBBANHANG_FORCE_HTTPS') !== '0');
 
 $requestHostHeader = (string)($_SERVER['HTTP_HOST'] ?? '');
 $requestHost = strtolower((string)preg_replace('/:\d+$/', '', $requestHostHeader));
 $developmentHosts = ['localhost', '127.0.0.1', '[::1]'];
-$configuredHosts = getenv('APP_ALLOWED_HOSTS') ?: getenv('APP_DOMAIN') ?: 'webbanhang.local';
+$isCloudflareTunnel = (bool)preg_match('/^[a-z0-9-]+\.trycloudflare\.com$/', $requestHost);
+if ($isCloudflareTunnel) {
+    $developmentHosts[] = $requestHost;
+}
+
+$isInfinityFree = (bool)preg_match('/^[a-z0-9-]+\.(infinityfreeapp\.com|epizy\.com|rf\.gd|great-site\.net)$/', $requestHost);
+
+$configuredHosts = appEnv('APP_ALLOWED_HOSTS') ?: appEnv('APP_DOMAIN') ?: 'webbanhang.local';
 $productionHosts = array_values(array_filter(array_map(
     static function ($host) {
         return strtolower(trim($host));
     },
     explode(',', $configuredHosts)
 )));
+if ($isInfinityFree) {
+    $productionHosts[] = $requestHost;
+}
 $allowedHosts = array_unique(array_merge($developmentHosts, $productionHosts));
 
 if ($requestHost === '' || !in_array($requestHost, $allowedHosts, true)) {
@@ -21,7 +32,7 @@ if ($requestHost === '' || !in_array($requestHost, $allowedHosts, true)) {
 }
 
 $isHttps = !empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off';
-$trustProxy = getenv('APP_TRUST_PROXY') === '1';
+$trustProxy = appEnv('APP_TRUST_PROXY') === '1' || $isCloudflareTunnel || $isInfinityFree;
 if (!$isHttps && $trustProxy) {
     $forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''), 2)[0]));
     $isHttps = $forwardedProto === 'https';

@@ -1,7 +1,7 @@
 <?php
 require_once(__DIR__ . '/../../../Private/security/session.php');
 session_start();
-require_once('../database/dbhelper.php');
+require_once(__DIR__ . '/../database/dbhelper.php');
 require_once(__DIR__ . '/../../../Private/security/csrf.php');
 
 
@@ -10,7 +10,18 @@ authRequireUser($conn);
 $userId = (int)$_SESSION['user_id'];
 $orders = [];
 
-$orderStatement = mysqli_prepare($conn, 'SELECT id, fullname, email, phone_number, address, order_date, status, total_money FROM `order` WHERE user_id = ? ORDER BY id DESC');
+$hasOrderCodeCol = false;
+$colCheck = mysqli_query($conn, "SHOW COLUMNS FROM `order` LIKE 'order_code'");
+if ($colCheck && mysqli_num_rows($colCheck) > 0) {
+    $hasOrderCodeCol = true;
+    mysqli_free_result($colCheck);
+}
+
+if ($hasOrderCodeCol) {
+    $orderStatement = mysqli_prepare($conn, 'SELECT id, order_code, delivery_pin, fullname, email, phone_number, address, order_date, status, total_money FROM `order` WHERE user_id = ? ORDER BY id DESC');
+} else {
+    $orderStatement = mysqli_prepare($conn, 'SELECT id, fullname, email, phone_number, address, order_date, status, total_money FROM `order` WHERE user_id = ? ORDER BY id DESC');
+}
 mysqli_stmt_bind_param($orderStatement, 'i', $userId);
 mysqli_stmt_execute($orderStatement);
 $orderResult = mysqli_stmt_get_result($orderStatement);
@@ -58,7 +69,7 @@ function orderStatusLabel($status) {
 }
 
 $utilsPageTitle = 'Đơn hàng của tôi | KhoaiLaptop';
-require_once('../assets/header.php');
+require_once(__DIR__ . '/../assets/header.php');
 ?>
 <main class="container utils-page orders-page">
     <a class="utils-back-link" href="./index.php">← Về trang chính</a>
@@ -77,14 +88,30 @@ require_once('../assets/header.php');
     <?php else: ?>
         <div class="orders-list">
             <?php foreach ($orders as $order): ?>
+                <?php 
+                    $displayCode = !empty($order['order_code']) ? $order['order_code'] : ('KL-' . str_pad((string)$order['id'], 6, '0', STR_PAD_LEFT));
+                    $deliveryPin = !empty($order['delivery_pin']) ? $order['delivery_pin'] : null;
+                ?>
                 <article class="order-card">
                     <div class="order-card-header">
                         <div>
-                            <p class="order-label">ĐƠN HÀNG #<?php echo (int)$order['id']; ?></p>
+                            <p class="order-label">ĐƠN HÀNG #<?php echo ordersEscape($displayCode); ?></p>
                             <time datetime="<?php echo ordersEscape($order['order_date']); ?>"><?php echo ordersEscape($order['order_date']); ?></time>
                         </div>
                         <span class="order-status order-status--<?php echo (int)$order['status']; ?>"><?php echo orderStatusLabel($order['status']); ?></span>
                     </div>
+
+                    <?php if ($deliveryPin): ?>
+                    <div class="order-verify-badge" style="background: #fffbeb; border: 1px dashed #d97706; border-radius: 8px; padding: 10px 14px; margin: 10px 0 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                        <div>
+                            <span style="font-size: 11px; font-weight: 700; color: #92400e; display: block; letter-spacing: 0.5px;">🔐 MÃ PIN ĐỐI CHIẾU SHIPPER (CHỐNG LỪA ĐẢO):</span>
+                            <strong style="font-size: 18px; font-family: monospace; color: #b45309; letter-spacing: 2px;">PIN: <?php echo ordersEscape($deliveryPin); ?></strong>
+                        </div>
+                        <span style="font-size: 12px; color: #78350f; max-width: 380px;">
+                            🛡️ <em>Chỉ chuyển khoản hoặc nhận hàng khi shipper đọc đúng mã PIN này.</em>
+                        </span>
+                    </div>
+                    <?php endif; ?>
 
                     <div class="order-items">
                         <?php foreach ($order['items'] as $item): ?>
@@ -105,4 +132,4 @@ require_once('../assets/header.php');
         </div>
     <?php endif; ?>
 </main>
-<?php require_once('../assets/footer.php'); ?>
+<?php require_once(__DIR__ . '/../assets/footer.php'); ?>

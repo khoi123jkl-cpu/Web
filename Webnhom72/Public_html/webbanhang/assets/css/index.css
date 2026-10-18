@@ -323,7 +323,7 @@ button {
 .ticker-track {
   display: flex;
   width: max-content;
-  animation: scrollText 18s linear infinite;
+  animation:scrollText 20s linear infinite;
 }
 
 .ticker-item {

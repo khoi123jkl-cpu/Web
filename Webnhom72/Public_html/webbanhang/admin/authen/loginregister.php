@@ -2,20 +2,35 @@
     require_once(__DIR__ . '/../../../../Private/security/session.php');
     session_start();
     require_once('../../utils/utility.php');
-    require_once('../../database/dbhelper.php');
+    require_once(__DIR__ . '/../../database/dbhelper.php');
     require_once(__DIR__ . '/../../../../Private/security/csrf.php');
     require_once(__DIR__ . '/../../../../Private/security/auth_throttle.php');
     require_once(__DIR__ . '/../../../../Private/security/mfa.php');
+    require_once(__DIR__ . '/../../../../Private/security/users_otp.php');
 
     $conn = getDB();
     $email = '';
     $error = '';
     $lockSeconds = 0;
 
+    $registerError = $_SESSION['register_error'] ?? '';
+    $registerFullname = $_SESSION['register_fullname'] ?? '';
+    $registerEmail = $_SESSION['register_email'] ?? '';
+    $registerPhone = $_SESSION['register_phone'] ?? '';
+    $registerBirthday = $_SESSION['register_birthday'] ?? '';
+
+    unset(
+        $_SESSION['register_error'],
+        $_SESSION['register_fullname'],
+        $_SESSION['register_email'],
+        $_SESSION['register_phone'],
+        $_SESSION['register_birthday']
+    );
+
     $rememberCookie = $_COOKIE['remember_token'] ?? '';
     if (!isset($_SESSION['user_id']) && $rememberCookie !== '') {
         $tokenHash = hash('sha256', $rememberCookie);
-        $autoLogin = mysqli_prepare($conn, 'SELECT u.id, u.fullname, u.email, u.role_id, u.updated_at FROM auth_tokens t INNER JOIN `User` u ON u.id = t.user_id WHERE t.token_hash = ? AND t.expires_at > NOW() AND u.deleted = 0 LIMIT 1');
+        $autoLogin = mysqli_prepare($conn, 'SELECT u.id, u.fullname, u.email, u.role_id, u.updated_at FROM auth_tokens t INNER JOIN `user` u ON u.id = t.user_id WHERE t.token_hash = ? AND t.expires_at > NOW() AND u.deleted = 0 LIMIT 1');
         mysqli_stmt_bind_param($autoLogin, 's', $tokenHash);
         mysqli_stmt_execute($autoLogin);
         mysqli_stmt_bind_result($autoLogin, $id, $fullname, $userEmail, $roleId, $authUpdatedAt);
@@ -48,46 +63,75 @@
             $error = 'Bạn đã thử đăng nhập sai quá 5 lần. Vui lòng đợi 60 giây rồi thử lại.';
             $lockSeconds = authThrottleRemainingSeconds($conn, $emailKey, $ipKey);
         } else {
-            $query = mysqli_prepare($conn, 'SELECT id, fullname, email, password, role_id, updated_at FROM `User` WHERE email = ? AND deleted = 0 LIMIT 1');
-            mysqli_stmt_bind_param($query, 's', $email);
-            mysqli_stmt_execute($query);
-            mysqli_stmt_bind_result($query, $id, $fullname, $userEmail, $passwordHash, $roleId, $authUpdatedAt);
+            try {
+                $query = mysqli_prepare($conn, 'SELECT id, fullname, email, password, role_id, updated_at FROM `user` WHERE email = ? AND deleted = 0 LIMIT 1');
+                mysqli_stmt_bind_param($query, 's', $email);
+                mysqli_stmt_execute($query);
+                mysqli_stmt_bind_result($query, $id, $fullname, $userEmail, $passwordHash, $roleId, $authUpdatedAt);
 
-            if (!mysqli_stmt_fetch($query)) {
-                $error = 'Email hoặc mật khẩu không đúng.';
-            }
-            mysqli_stmt_close($query);
-
-            $isValidPassword = $error === '' && password_verify($password, $passwordHash);
-            if ($error === '' && !$isValidPassword) {
-                $error = 'Email hoặc mật khẩu không đúng.';
-            }
-
-            if ($error === '' && (int)$roleId === 1) {
-                $error = 'Tài khoản Admin cần đăng nhập tại trang quản trị.';
-            }
-
-            if ($error !== '') {
-                authThrottleRecordFailure($conn, $emailKey, $ipKey);
-                if (authThrottleIsBlocked($conn, $emailKey, $ipKey)) {
-                    $error = 'Bạn đã thử đăng nhập sai quá 5 lần. Vui lòng đợi 60 giây rồi thử lại.';
-                    $lockSeconds = authThrottleRemainingSeconds($conn, $emailKey, $ipKey);
+                if (!mysqli_stmt_fetch($query)) {
+                    $error = 'Email hoặc mật khẩu không đúng.';
                 }
-            } else {
-                authThrottleClear($conn, $emailKey, $ipKey);
-                session_regenerate_id(true);
-                $_SESSION['user_id'] = $id;
-                $_SESSION['fullname'] = $fullname;
-                $_SESSION['email'] = $userEmail;
-                $_SESSION['role_id'] = $roleId;
-                $_SESSION['auth_updated_at'] = $authUpdatedAt;
+                mysqli_stmt_close($query);
 
-                if (isset($_POST['remember'])) {
-                    authRotateRememberToken($conn, $id);
+                $isValidPassword = $error === '' && password_verify($password, $passwordHash);
+                if ($error === '' && !$isValidPassword) {
+                    $error = 'Email hoặc mật khẩu không đúng.';
                 }
 
-                header('Location: ../../utils/index.php');
-                exit;
+                if ($error === '' && (int)$roleId === 1) {
+                    $error = 'Tài khoản Admin cần đăng nhập tại trang quản trị.';
+                }
+
+                if ($error !== '') {
+                    authThrottleRecordFailure($conn, $emailKey, $ipKey);
+                    if (authThrottleIsBlocked($conn, $emailKey, $ipKey)) {
+                        $error = 'Bạn đã thử đăng nhập sai quá 5 lần. Vui lòng đợi 60 giây rồi thử lại.';
+                        $lockSeconds = authThrottleRemainingSeconds($conn, $emailKey, $ipKey);
+                    }
+                } else {
+                    authThrottleClear($conn, $emailKey, $ipKey);
+
+                    // Nếu người dùng có tích "Ghi nhớ tôi" (lưu đăng nhập) -> Bỏ qua OTP, đăng nhập trực tiếp
+                    if (isset($_POST['remember'])) {
+                        session_regenerate_id(true);
+                        $_SESSION['user_id'] = $id;
+                        $_SESSION['fullname'] = $fullname;
+                        $_SESSION['email'] = $userEmail;
+                        $_SESSION['role_id'] = $roleId;
+                        $_SESSION['auth_updated_at'] = $authUpdatedAt;
+                        authRotateRememberToken($conn, $id);
+
+                        header('Location: ../../utils/index.php');
+                        exit;
+                    }
+
+                    // Nếu KHÔNG tích lưu đăng nhập -> Tạo mã OTP 6 số, gửi về email và chuyển sang trang xác thực
+                    $otpCode = userOtpGenerateCode();
+                    $sent = userOtpSendEmail($userEmail, $otpCode, 'login', $fullname);
+
+                    $_SESSION['user_auth_pending'] = [
+                        'action'          => 'login',
+                        'user_id'         => $id,
+                        'fullname'        => $fullname,
+                        'email'           => $userEmail,
+                        'role_id'         => $roleId,
+                        'auth_updated_at' => $authUpdatedAt,
+                        'remember'        => false,
+                        'otp_code'        => $otpCode,
+                        'otp_expires'     => time() + 300,
+                        'resend_cooldown' => time() + 60,
+                        'attempts'        => 0,
+                        'mail_sent'       => $sent,
+                        'dev_otp'         => $otpCode
+                    ];
+
+                    header('Location: users_authentication.php');
+                    exit;
+                }
+            } catch (Throwable $e) {
+                error_log('[webbanhang] Lỗi đăng nhập: ' . $e->getMessage());
+                $error = 'Lỗi cơ sở dữ liệu: ' . $e->getMessage() . '. Vui lòng kiểm tra đã Import file webbanhang.sql lên phpMyAdmin chưa.';
             }
         }
     }
@@ -103,7 +147,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
 <body>
-    <main class="auth-shell" id="authShell">
+    <main class="auth-shell<?php echo $registerError !== '' ? ' show-register' : ''; ?>" id="authShell">
         <section class="auth-form login-form" aria-label="Đăng nhập">
             <div class="form-content">
                 <span class="eyebrow">Chào mừng trở lại</span>
@@ -143,21 +187,22 @@
                 <span class="eyebrow">Bắt đầu hành trình</span>
                 <h1>Tạo tài khoản</h1>
                 <p class="form-intro">Điền thông tin bên dưới để tham gia cùng chúng tôi.</p>
+                <?php if ($registerError !== ''): ?><p class="login-error" role="alert"><?php echo htmlspecialchars($registerError, ENT_QUOTES, 'UTF-8'); ?></p><?php endif; ?>
                 <form action="process_form_register.php" method="POST">
                     <?php echo adminCsrfField(); ?>
                     <label for="fullname">Họ và tên</label>
-                    <div class="input-wrap"><i class="fa-regular fa-user"></i><input type="text" id="fullname" name="fullname" placeholder="Nguyễn Văn A" required></div>
+                    <div class="input-wrap"><i class="fa-regular fa-user"></i><input type="text" id="fullname" name="fullname" value="<?php echo htmlspecialchars($registerFullname, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Nguyễn Văn A" required></div>
                     <label for="register-email">Email</label>
-                    <div class="input-wrap"><i class="fa-regular fa-envelope"></i><input type="email" id="register-email" name="email" placeholder="you@example.com" required></div>
+                    <div class="input-wrap"><i class="fa-regular fa-envelope"></i><input type="email" id="register-email" name="email" value="<?php echo htmlspecialchars($registerEmail, ENT_QUOTES, 'UTF-8'); ?>" placeholder="you@example.com" required></div>
                     <div class="field-row">
-                        <div><label for="address">Số điện thoại</label><div class="input-wrap"><i class="fa-solid fa-phone"></i><input type="text" id="address" name="address" placeholder="0123 456 789"></div></div>
-                        <div><label for="birthday">Ngày sinh</label><div class="input-wrap"><i class="fa-regular fa-calendar"></i><input type="date" id="birthday" name="birthday"></div></div>
+                        <div><label for="address">Số điện thoại</label><div class="input-wrap"><i class="fa-solid fa-phone"></i><input type="text" id="address" name="address" value="<?php echo htmlspecialchars($registerPhone, ENT_QUOTES, 'UTF-8'); ?>" placeholder="0123 456 789"></div></div>
+                        <div><label for="birthday">Ngày sinh</label><div class="input-wrap"><i class="fa-regular fa-calendar"></i><input type="date" id="birthday" name="birthday" value="<?php echo htmlspecialchars($registerBirthday, ENT_QUOTES, 'UTF-8'); ?>"></div></div>
                     </div>
                     <label for="pwd">Mật khẩu</label>
                     <div class="input-wrap"><i class="fa-solid fa-lock"></i><input type="password" id="pwd" name="password" placeholder="Tối thiểu 8 ký tự" required></div>
                     <label for="confirmation_pwd">Xác nhận mật khẩu</label>
                     <div class="input-wrap"><i class="fa-solid fa-shield-halved"></i><input type="password" id="confirmation_pwd" name="confirmation_pwd" placeholder="Nhập lại mật khẩu" required></div>
-                    <label class="check-label terms"><input type="checkbox" name="terms" required> <span>Tôi đồng ý với các điều khoản sử dụng</span></label>
+                    <label class="check-label terms"><input type="checkbox" name="terms" required checked> <span>Tôi đồng ý với các điều khoản sử dụng</span></label>
                     <button class="primary-button" type="submit">Đăng ký <i class="fa-solid fa-arrow-right"></i></button>
                 </form>
                 <p class="mobile-switch">Đã có tài khoản? <button type="button" data-show="login">Đăng nhập</button></p>

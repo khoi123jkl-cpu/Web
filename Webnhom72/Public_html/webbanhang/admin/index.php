@@ -34,7 +34,7 @@ $displayName = htmlspecialchars($_SESSION['fullname'] ?? 'Quản trị viên', E
     <div>
         <p class="eyebrow">BẢNG ĐIỀU KHIỂN</p>
         <h1>Tổng quan hệ thống</h1>
-        <p>Chào mừng trở lại, <strong><?php echo $displayName; ?></strong>. Bạn muốn quản lý gì hôm nay?</p>
+        <p>Chào mừng trở lại, <strong><?php echo $displayName; ?></strong></p>
     </div>
 </div>
 
